@@ -31,7 +31,7 @@ class ViewFuncNode:
         if self.is_index:
             return []
         else:
-            return [self.parent] + self.parent.parents()
+            return [self.parent] + self.parent.parents
 
     def register(self, app, options):
         def child(name, display_string=None, **options):
@@ -160,7 +160,7 @@ class ViewNode:
         if self.is_index:
             return []
         else:
-            return [self.parent] + self.parent.parents()
+            return [self.parent] + self.parent.parents
 
     @property
     def url(self):
