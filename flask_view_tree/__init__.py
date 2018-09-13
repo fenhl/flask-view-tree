@@ -110,13 +110,15 @@ class ViewNode:
                 return str(kwarg_value)
 
     def __str__(self):
-        if view_func_node.is_static:
-            if view_func_node.display_string is None:
-                return view_func_node.name
+        if self.is_index:
+            return '/'
+        elif self.is_static:
+            if self.view_func_node.display_string is None:
+                return self.view_func_node.name
             else:
-                return view_func_node.display_string
+                return self.view_func_node.display_string
         else:
-            return str(kwarg_value)
+            return str(self.arg)
 
     @property
     def children(self):
