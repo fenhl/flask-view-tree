@@ -18,7 +18,7 @@ class ViewFuncNode:
 
     @property
     def __key__(self):
-        return ([] if self.is_index else self.parent.class_key) + [self.name]
+        return (() if self.is_index else self.parent.__key__) + (self.name,)
 
     @property
     def children_are_static(self):
@@ -108,7 +108,7 @@ class ViewNode:
 
     @property
     def __key__(self):
-        return ([] if self.is_index else self.parent.class_key) + [self.view_func_node.name if self.is_static else self.var]
+        return (() if self.is_index else self.parent.__key__) + (self.view_func_node.name if self.is_static else self.var,)
 
     @staticmethod
     def url_part(view_func_node, kwarg_value):
