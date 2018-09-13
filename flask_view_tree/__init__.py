@@ -72,9 +72,9 @@ class ViewFuncNode:
         if self.is_index:
             return '/'
         elif self.is_static:
-            return '{}/{}'.format(self.parent.url_rule, self.name)
+            return '{}/{}'.format('' if self.parent.is_index else self.parent.url_rule, self.name)
         else:
-            return '{}/<{}>'.format(self.parent.url_rule, self.var_name)
+            return '{}/<{}>'.format('' if self.parent.is_index else self.parent.url_rule, self.var_name)
 
     @property
     def variables(self):
