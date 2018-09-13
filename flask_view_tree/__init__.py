@@ -1,4 +1,5 @@
 import class_key
+import collections
 import flask
 import functools
 import inspect
@@ -9,7 +10,7 @@ class ViewFuncNode:
     def __init__(self, view, parent=None, *, name=None, display_string=None, var_name=None, var_converter=None, iterable=None):
         self.view = view
         self.parent = parent
-        self.children = {}
+        self.children = collections.OrderedDict()
         self.name = name
         self.display_string = display_string
         self.var_name = var_name
