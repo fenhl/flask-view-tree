@@ -1,8 +1,10 @@
+import class_key
 import flask
 import functools
 import inspect
 import more_itertools
 
+@class_key.class_key()
 class ViewFuncNode:
     def __init__(self, view, parent=None, *, name=None, display_string=None, var_name=None, var_converter=None, iterable=None):
         self.view = view
@@ -13,6 +15,10 @@ class ViewFuncNode:
         self.var_name = var_name
         self.var_converter = var_converter
         self.iterable = iterable
+
+    @property
+    def __key__(self):
+        return ([] if self.is_index else self.parent.class_key) + [self.name]
 
     @property
     def children_are_static(self):
@@ -85,6 +91,7 @@ class ViewFuncNode:
         else:
             return {self.var_name: self.var_converter, **self.parent.variables}
 
+@class_key.class_key()
 class ViewNode:
     def __init__(self, view_func_node, raw_kwargs, *, kwargs=None):
         self.view_func_node = view_func_node
@@ -98,6 +105,10 @@ class ViewNode:
             }
         else:
             self.kwargs = kwargs
+
+    @property
+    def __key__(self):
+        return ([] if self.is_index else self.parent.class_key) + [self.view_func_node.name if self.is_static else self.var]
 
     @staticmethod
     def url_part(view_func_node, kwarg_value):

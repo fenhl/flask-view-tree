@@ -3,7 +3,8 @@
 # Dependencies
 
 * Python 3.5
-* [more-itertools](https://pypi.org/project/more-itertools/)
+* [class_key](https://github.com/fenhl/python-class-key)
+* [more_itertools](https://pypi.org/project/more-itertools/)
 
 # Example
 
