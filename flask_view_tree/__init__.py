@@ -7,7 +7,7 @@ import more_itertools
 
 @class_key.class_key()
 class ViewFuncNode:
-    def __init__(self, view, parent=None, *, name=None, display_string=None, var_name=None, var_converter=None, iterable=None):
+    def __init__(self, view, parent=None, *, name=None, display_string=None, var_name=None, var_converter=None, iterable=None, redirect_func=None):
         self.view = view
         self.parent = parent
         self.children = collections.OrderedDict()
@@ -16,6 +16,7 @@ class ViewFuncNode:
         self.var_name = var_name
         self.var_converter = var_converter
         self.iterable = iterable
+        self.redirect_func = redirect_func
 
     @property
     def __key__(self):
@@ -28,6 +29,10 @@ class ViewFuncNode:
     @property
     def is_index(self):
         return self.parent is None
+
+    @property
+    def is_redirect(self):
+        return self.redirect_func is not None
 
     @property
     def is_static(self):
@@ -55,6 +60,24 @@ class ViewFuncNode:
 
             return decorator
 
+        def redirect(name, display_string=None, **options):
+            def decorator(f):
+                @functools.wraps(f)
+                def wrapper(**kwargs):
+                    target_node = ViewNode(self, kwargs).resolve_redirect()
+                    return flask.redirect(target_node.url)
+
+                def redirect_children_view_func(flask_view_tree_redirect_subtree, **kwargs):
+                    target_node = ViewNode(self, kwargs).resolve_redirect()
+                    return flask.redirect('{}/{}'.format(target_node.url, flask_view_tree_redirect_subtree))
+
+                wrapper.view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string, redirect_func=f)
+                app.add_url_rule(wrapper.view_func_node.url_rule, f.__name__, wrapper, **options)
+                app.add_url_rule('{}/<path:flask_view_tree_redirect_subtree>'.format(wrapper.view_func_node.url_rule), 'flask_view_tree_redirect_children_{}'.format(f.__name__), redirect_children_view_func, **options)
+                return wrapper
+
+            return decorator
+
         def children(var_converter, iterable=None, **options):
             def decorator(f):
                 @functools.wraps(f)
@@ -72,6 +95,7 @@ class ViewFuncNode:
 
         app.add_url_rule(self.url_rule, self.view.__name__, self.view, **options)
         self.view.child = child
+        self.view.redirect = redirect
         self.view.children = children
 
     @property
@@ -97,7 +121,7 @@ class ViewNode:
     def __init__(self, view_func_node, raw_kwargs, *, kwargs=None):
         self.view_func_node = view_func_node
         self.raw_kwargs = raw_kwargs
-        for attr in {'children_are_static', 'is_index', 'is_static', 'variables', 'view'}:
+        for attr in {'children_are_static', 'is_index', 'is_redirect', 'is_static', 'variables', 'view'}:
             setattr(self, attr, getattr(self.view_func_node, attr))
         if kwargs is None:
             self.kwargs = {
@@ -131,6 +155,17 @@ class ViewNode:
                 return self.view_func_node.display_string
         else:
             return str(self.arg)
+
+    def __truediv__(self, other):
+        if self.children_are_static:
+            return more_itertools.one(
+                child
+                for child in self.children
+                if child.view_func_node.name == other
+            )
+        else:
+            child_node = self.view_func_node.children
+            return ViewNode(child_node, {child_node.var_name: ViewNode.url_part(child_node, other), **self.raw_kwargs}, kwargs={child_node.var_name: other, **self.kwargs})
 
     @property
     def children(self):
@@ -174,6 +209,12 @@ class ViewNode:
         else:
             return [self.parent] + self.parent.parents
 
+    def resolve_redirect(self):
+        target_node = self
+        for target_part in self.view_func_node.redirect_func(**self.raw_kwargs):
+            target_node = target_node.with_redirect_target_part(target_part)
+        return target_node
+
     @property
     def url(self):
         return flask.url_for(self.view.__name__, **self.raw_kwargs)
@@ -181,6 +222,17 @@ class ViewNode:
     @property
     def var(self):
         return self.kwargs[self.view_func_node.var_name]
+
+    def with_redirect_target_part(self, target_part):
+        if hasattr(target_part, 'view_func_node'):
+            target_part = target_part.view_func_node
+        if isinstance(target_part, ViewFuncNode):
+            target_part = ViewNode(target_part, self.raw_kwargs, kwargs=self.kwargs)
+        if isinstance(target_part, ViewNode):
+            while target_part.is_redirect:
+                target_part = target_part.resolve_redirect()
+            return target_part
+        return self / target_part
 
 def index(app, **options):
     def decorator(f):

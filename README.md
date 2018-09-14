@@ -27,6 +27,10 @@ def users_list():
 @users_list.children(my_app.model.User) # Registers this view function for `/users/<user>`.
 def profile(user):
     return flask.render_template('profile.html')
+
+@index.redirect('me') # Redirects `/me` to `/users/<flask.g.user>`, and all URLs starting with `/me/` to `/users/<flask.g.user>/`.
+def me():
+    return profile, flask.g.user
 ```
 
 **Note:** A node can either have any number of children registered using `child`, or have all children handled by a single registration of `children`. Do not mix `child` and `children`, or call `children` multiple times on the same node, unless you're sure you know what you're doing.
