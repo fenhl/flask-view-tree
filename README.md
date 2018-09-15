@@ -20,7 +20,7 @@ app = application = flask.Flask(...)
 def index():
     return flask.render_template('index.html')
 
-@index.child('users') # Registers this view function for `/about`.
+@index.child('users') # Registers this view function for `/users`.
 def users_list():
     return flask.render_template('users-list.html')
 
