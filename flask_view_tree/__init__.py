@@ -3,6 +3,7 @@ import collections
 import flask
 import functools
 import inspect
+import itertools
 import more_itertools
 
 @class_key.class_key()
@@ -110,11 +111,11 @@ class ViewFuncNode:
     @property
     def variables(self):
         if self.is_index:
-            return {}
+            return collections.OrderedDict()
         elif self.is_static:
             return self.parent.variables
         else:
-            return {self.var_name: self.var_converter, **self.parent.variables}
+            return collections.OrderedDict(itertools.chain(self.parent.variables, [(self.var_name, self.var_converter)]))
 
 @class_key.class_key()
 class ViewNode:
@@ -124,10 +125,17 @@ class ViewNode:
         for attr in {'children_are_static', 'is_index', 'is_redirect', 'is_static', 'variables', 'view'}:
             setattr(self, attr, getattr(self.view_func_node, attr))
         if kwargs is None:
-            self.kwargs = {
-                variable: converter(self.raw_kwargs[variable])
-                for variable, converter in self.variables
-            }
+            self.kwargs = {}
+            for variable, converter in self.variables.items():
+                if variable in inspect.signature(converter).parameters:
+                    self.kwargs[variable] = converter(**{
+                        self.kwargs.get(iter_var, self.raw_kwargs[iter_var])
+                        for iter_var in self.variables
+                        if iter_var in inspect.signature(converter).parameters
+                    })
+                else:
+                    # variable name doesn't appear in converter's kwargs, assume it takes a single positional argument
+                    self.kwargs[variable] = converter(self.raw_kwargs[variable])
         else:
             self.kwargs = kwargs
 
