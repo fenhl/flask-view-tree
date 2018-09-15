@@ -78,7 +78,7 @@ class ViewFuncNode:
 
             return decorator
 
-        def children(var_converter, iterable=None, **options):
+        def children(var_converter=identity, iterable=None, **options):
             def decorator(f):
                 @functools.wraps(f)
                 def wrapper(**kwargs):
@@ -233,6 +233,9 @@ class ViewNode:
                 target_part = target_part.resolve_redirect()
             return target_part
         return self / target_part
+
+def identity(x):
+    return x
 
 def index(app, **options):
     def decorator(f):
