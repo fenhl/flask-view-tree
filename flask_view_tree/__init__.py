@@ -162,7 +162,7 @@ class ViewNode:
             else:
                 return self.view_func_node.display_string
         else:
-            return str(self.arg)
+            return str(self.var)
 
     def __truediv__(self, other):
         if self.children_are_static:
