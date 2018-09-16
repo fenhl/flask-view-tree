@@ -65,11 +65,11 @@ class ViewFuncNode:
             def decorator(f):
                 @functools.wraps(f)
                 def wrapper(**kwargs):
-                    target_node = ViewNode(self, kwargs).resolve_redirect()
+                    target_node = wrapper.view_node.resolve_redirect()
                     return flask.redirect(target_node.url)
 
                 def redirect_children_view_func(flask_view_tree_redirect_subtree, **kwargs):
-                    target_node = ViewNode(self, kwargs).resolve_redirect()
+                    target_node = wrapper.view_node.resolve_redirect()
                     return flask.redirect('{}/{}'.format(target_node.url, flask_view_tree_redirect_subtree))
 
                 wrapper.view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string, redirect_func=f)
@@ -218,7 +218,7 @@ class ViewNode:
             return [self.parent] + self.parent.parents
 
     def resolve_redirect(self):
-        target_node = self
+        target_node = self.parent
         for target_part in self.view_func_node.redirect_func(**self.raw_kwargs):
             target_node = target_node.with_redirect_target_part(target_part)
         return target_node
