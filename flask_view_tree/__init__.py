@@ -129,7 +129,7 @@ class ViewNode:
             for variable, converter in self.variables.items():
                 if variable in inspect.signature(converter).parameters:
                     self.kwargs[variable] = converter(**{
-                        self.kwargs.get(iter_var, self.raw_kwargs[iter_var])
+                        iter_var: self.kwargs.get(iter_var, self.raw_kwargs[iter_var])
                         for iter_var in self.variables
                         if iter_var in inspect.signature(converter).parameters
                     })
