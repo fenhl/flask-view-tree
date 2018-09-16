@@ -115,7 +115,7 @@ class ViewFuncNode:
         elif self.is_static:
             return self.parent.variables
         else:
-            return collections.OrderedDict(itertools.chain(self.parent.variables, [(self.var_name, self.var_converter)]))
+            return collections.OrderedDict(itertools.chain(self.parent.variables.items(), [(self.var_name, self.var_converter)]))
 
 @class_key.class_key()
 class ViewNode:
