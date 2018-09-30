@@ -65,9 +65,9 @@ class ViewFuncNode:
                     return f(**flask.g.view_node.kwargs)
 
                 view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string, decorators=decorators)
-                self.children[name] = wrapper.view_func_node = view_func_node
+                self.children[name] = view_func_node
                 view_func_node.register(app, options)
-                return wrapper
+                return view_func_node.view
 
             return decorator
 
@@ -87,7 +87,7 @@ class ViewFuncNode:
                     redirect_children_view_func = iter_decorator(redirect_children_view_func)
                 app.add_url_rule(view_func_node.url_rule, f.__name__, wrapper, **options)
                 app.add_url_rule('{}/<path:flask_view_tree_redirect_subtree>'.format(view_func_node.url_rule), 'flask_view_tree_redirect_children_{}'.format(f.__name__), redirect_children_view_func, **options)
-                return wrapper
+                return view_func_node.view
 
             return decorator
 
@@ -101,8 +101,8 @@ class ViewFuncNode:
                 child_var = more_itertools.one(set(inspect.signature(f).parameters) - set(self.variables)) # find the name of the parameter that the child's viewfunc has but self's doesn't
                 view_func_node = ViewFuncNode(wrapper, self, var_name=child_var, var_converter=var_converter, iterable=iterable, decorators=decorators)
                 self.children = view_func_node
-                wrapper.view_func_node.register(app, options)
-                return wrapper
+                view_func_node.register(app, options)
+                return view_func_node.view
 
             return decorator
 
@@ -272,6 +272,6 @@ def index(app, *, decorators=None, **options):
 
         view_func_node = ViewFuncNode(wrapper, decorators=decorators)
         view_func_node.register(app, options)
-        return wrapper
+        return view_func_node.view
 
     return decorator
