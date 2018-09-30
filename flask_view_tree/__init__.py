@@ -107,9 +107,15 @@ class ViewFuncNode:
             return decorator
 
         app.add_url_rule(self.url_rule, self.view.__name__, self.view, **options)
-        self.view.child = child
-        self.view.redirect = redirect
-        self.view.children = children
+        iter_view = self.view
+        while True:
+            iter_view.child = child
+            iter_view.redirect = redirect
+            iter_view.children = children
+            if hasattr(iter_view, '__wrapped__'):
+                iter_view = iter_view.__wrapped__
+            else:
+                break
 
     @property
     def url_rule(self):
