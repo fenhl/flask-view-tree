@@ -8,7 +8,7 @@ import more_itertools
 
 @class_key.class_key()
 class ViewFuncNode:
-    def __init__(self, view, parent=None, *, name=None, display_string=None, var_name=None, var_converter=None, iterable=None, redirect_func=None):
+    def __init__(self, view, parent=None, *, name=None, display_string=None, var_name=None, var_converter=None, iterable=None, redirect_func=None, decorators=None):
         self.view = view
         self.parent = parent
         self.children = collections.OrderedDict()
@@ -18,6 +18,12 @@ class ViewFuncNode:
         self.var_converter = var_converter
         self.iterable = iterable
         self.redirect_func = redirect_func
+        if decorators is None:
+            self.decorators = []
+        else:
+            self.decorators = list(decorators)
+        if self.parent is not None:
+            self.decorators = self.parent.decorators + self.decorators
 
     @property
     def __key__(self):
@@ -47,21 +53,23 @@ class ViewFuncNode:
             return [self.parent] + self.parent.parents
 
     def register(self, app, options):
-        def child(name, display_string=None, **options):
+        def child(name, display_string=None, *, decorators=None, **options):
             def decorator(f):
                 @functools.wraps(f)
                 def wrapper(**kwargs):
                     flask.g.view_node = ViewNode(wrapper.view_func_node, kwargs)
                     return f(**flask.g.view_node.kwargs)
 
-                wrapper.view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string)
+                wrapper.view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string, decorators=decorators)
+                for iter_decorator in wrapper.view_func_node.decorators:
+                    wrapper = iter_decorator(wrapper)
                 self.children[name] = wrapper.view_func_node
                 wrapper.view_func_node.register(app, options)
                 return wrapper
 
             return decorator
 
-        def redirect(name, display_string=None, **options):
+        def redirect(name, display_string=None, *, decorators=None, **options):
             def decorator(f):
                 @functools.wraps(f)
                 def wrapper(**kwargs):
@@ -72,14 +80,17 @@ class ViewFuncNode:
                     target_node = ViewNode(wrapper.view_func_node, kwargs).resolve_redirect()
                     return flask.redirect('{}/{}'.format(target_node.url, flask_view_tree_redirect_subtree))
 
-                wrapper.view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string, redirect_func=f)
+                wrapper.view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string, redirect_func=f, decorators=decorators)
+                for iter_decorator in wrapper.view_func_node.decorators:
+                    wrapper = iter_decorator(wrapper)
+                    redirect_children_view_func = iter_decorator(redirect_children_view_func)
                 app.add_url_rule(wrapper.view_func_node.url_rule, f.__name__, wrapper, **options)
                 app.add_url_rule('{}/<path:flask_view_tree_redirect_subtree>'.format(wrapper.view_func_node.url_rule), 'flask_view_tree_redirect_children_{}'.format(f.__name__), redirect_children_view_func, **options)
                 return wrapper
 
             return decorator
 
-        def children(var_converter=identity, iterable=None, **options):
+        def children(var_converter=identity, iterable=None, *, decorators=None, **options):
             def decorator(f):
                 @functools.wraps(f)
                 def wrapper(**kwargs):
@@ -87,7 +98,9 @@ class ViewFuncNode:
                     return f(**flask.g.view_node.kwargs)
 
                 child_var = more_itertools.one(set(inspect.signature(f).parameters) - set(self.variables)) # find the name of the parameter that the child's viewfunc has but self's doesn't
-                wrapper.view_func_node = ViewFuncNode(wrapper, self, var_name=child_var, var_converter=var_converter, iterable=iterable)
+                wrapper.view_func_node = ViewFuncNode(wrapper, self, var_name=child_var, var_converter=var_converter, iterable=iterable, decorators=decorators)
+                for iter_decorator in wrapper.view_func_node.decorators:
+                    wrapper = iter_decorator(wrapper)
                 self.children = wrapper.view_func_node
                 wrapper.view_func_node.register(app, options)
                 return wrapper
@@ -245,14 +258,16 @@ class ViewNode:
 def identity(x):
     return x
 
-def index(app, **options):
+def index(app, *, decorators=None, **options):
     def decorator(f):
         @functools.wraps(f)
         def wrapper(**kwargs):
             flask.g.view_node = ViewNode(wrapper.view_func_node, kwargs)
             return f(**flask.g.view_node.kwargs)
 
-        wrapper.view_func_node = ViewFuncNode(wrapper)
+        wrapper.view_func_node = ViewFuncNode(wrapper, decorators=decorators)
+        for iter_decorator in wrapper.view_func_node.decorators:
+            wrapper = iter_decorator(wrapper)
         wrapper.view_func_node.register(app, options)
         return wrapper
 
