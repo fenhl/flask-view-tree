@@ -6,6 +6,8 @@ import inspect
 import itertools
 import more_itertools
 
+NO_EXC = object()
+
 @class_key.class_key()
 class ViewFuncNode:
     def __init__(self, view, parent=None, *, name=None, display_string=None, var_name=None, var_converter=None, iterable=None, redirect_func=None, decorators=None):
@@ -28,6 +30,8 @@ class ViewFuncNode:
         for iter_decorator in self.decorators:
             self.view = iter_decorator(view)
             self.view.view_func_node = self
+        self.init_exc_types = ()
+        self.init_exc_handler = None
 
     @property
     def __key__(self):
@@ -56,13 +60,16 @@ class ViewFuncNode:
         else:
             return [self.parent] + self.parent.parents
 
-    def register(self, app, options):
+    def register(self, app, options, *, register_catch_init=False):
         def child(name, display_string=None, *, decorators=None, **options):
             def decorator(f):
                 @functools.wraps(f)
                 def wrapper(**kwargs):
                     flask.g.view_node = ViewNode(wrapper.view_func_node, kwargs)
-                    return f(**flask.g.view_node.kwargs)
+                    if flask.g.view_node.init_exc_handler_result is NO_EXC:
+                        return f(**flask.g.view_node.kwargs)
+                    else:
+                        return flask.g.view_node.init_exc_handler_result
 
                 view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string, decorators=decorators)
                 self.children[name] = view_func_node
@@ -75,12 +82,20 @@ class ViewFuncNode:
             def decorator(f):
                 @functools.wraps(f)
                 def wrapper(**kwargs):
-                    target_node = ViewNode(wrapper.view_func_node, kwargs).resolve_redirect()
-                    return flask.redirect(target_node.url)
+                    view_node = ViewNode(wrapper.view_func_node, kwargs)
+                    if view_node.init_exc_handler_result is NO_EXC:
+                        target_node = view_node.resolve_redirect()
+                        return flask.redirect(target_node.url)
+                    else:
+                        return view_node.init_exc_handler_result
 
                 def redirect_children_view_func(flask_view_tree_redirect_subtree, **kwargs):
-                    target_node = ViewNode(wrapper.view_func_node, kwargs).resolve_redirect()
-                    return flask.redirect('{}/{}'.format(target_node.url, flask_view_tree_redirect_subtree))
+                    view_node = ViewNode(wrapper.view_func_node, kwargs)
+                    if view_node.init_exc_handler_result is NO_EXC:
+                        target_node = view_node.resolve_redirect()
+                        return flask.redirect('{}/{}'.format(target_node.url, flask_view_tree_redirect_subtree))
+                    else:
+                        return view_node.init_exc_handler_result
 
                 view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string, redirect_func=f, decorators=decorators)
                 for iter_decorator in view_func_node.decorators:
@@ -96,13 +111,24 @@ class ViewFuncNode:
                 @functools.wraps(f)
                 def wrapper(**kwargs):
                     flask.g.view_node = ViewNode(wrapper.view_func_node, kwargs)
-                    return f(**flask.g.view_node.kwargs)
+                    if flask.g.view_node.init_exc_handler_result is NO_EXC:
+                        return f(**flask.g.view_node.kwargs)
+                    else:
+                        return flask.g.view_node.init_exc_handler_result
 
                 child_var = more_itertools.one(set(inspect.signature(f).parameters) - set(self.variables)) # find the name of the parameter that the child's viewfunc has but self's doesn't
                 view_func_node = ViewFuncNode(wrapper, self, var_name=child_var, var_converter=var_converter, iterable=iterable, decorators=decorators)
                 self.children = view_func_node
-                view_func_node.register(app, options)
+                view_func_node.register(app, options, register_catch_init=True)
                 return view_func_node.view
+
+            return decorator
+
+        def catch_init(*exc_types):
+            def decorator(f):
+                self.init_exc_types = exc_types
+                self.init_exc_handler = f
+                return f
 
             return decorator
 
@@ -112,6 +138,8 @@ class ViewFuncNode:
             iter_view.child = child
             iter_view.redirect = redirect
             iter_view.children = children
+            if register_catch_init:
+                iter_view.catch_init = catch_init
             if hasattr(iter_view, '__wrapped__'):
                 iter_view = iter_view.__wrapped__
             else:
@@ -133,27 +161,34 @@ class ViewFuncNode:
         elif self.is_static:
             return self.parent.variables
         else:
-            return collections.OrderedDict(itertools.chain(self.parent.variables.items(), [(self.var_name, self.var_converter)]))
+            return collections.OrderedDict(itertools.chain(self.parent.variables.items(), [(self.var_name, (self.var_converter, self.init_exc_types, self.init_exc_handler))]))
 
 @class_key.class_key()
 class ViewNode:
     def __init__(self, view_func_node, raw_kwargs, *, kwargs=None):
         self.view_func_node = view_func_node
         self.raw_kwargs = raw_kwargs
+        self.init_exc_handler_result = NO_EXC
         for attr in {'children_are_static', 'is_index', 'is_redirect', 'is_static', 'variables', 'view'}:
             setattr(self, attr, getattr(self.view_func_node, attr))
         if kwargs is None:
             self.kwargs = {}
-            for variable, converter in self.variables.items():
-                if variable in inspect.signature(converter).parameters:
-                    self.kwargs[variable] = converter(**{
-                        iter_var: self.kwargs.get(iter_var, self.raw_kwargs[iter_var])
-                        for iter_var in self.variables
-                        if iter_var in inspect.signature(converter).parameters
-                    })
-                else:
-                    # variable name doesn't appear in converter's kwargs, assume it takes a single positional argument
-                    self.kwargs[variable] = converter(self.raw_kwargs[variable])
+            for variable, (converter, init_exc_types, init_exc_handler) in self.variables.items():
+                try:
+                    if variable in inspect.signature(converter).parameters:
+                        self.kwargs[variable] = converter(**{
+                            iter_var: self.kwargs.get(iter_var, self.raw_kwargs[iter_var])
+                            for iter_var in self.variables
+                            if iter_var in inspect.signature(converter).parameters
+                        })
+                    else:
+                        # variable name doesn't appear in converter's kwargs, assume it takes a single positional argument
+                        self.kwargs[variable] = converter(self.raw_kwargs[variable])
+                except init_exc_types as e:
+                    if init_exc_handler is None:
+                        raise
+                    self.init_exc_handler_result = init_exc_handler(e)
+                    return
         else:
             self.kwargs = kwargs
 
@@ -268,7 +303,10 @@ def index(app, *, decorators=None, **options):
         @functools.wraps(f)
         def wrapper(**kwargs):
             flask.g.view_node = ViewNode(wrapper.view_func_node, kwargs)
-            return f(**flask.g.view_node.kwargs)
+            if flask.g.view_node.init_exc_handler_result is NO_EXC:
+                return f(**flask.g.view_node.kwargs)
+            else:
+                return flask.g.view_node.init_exc_handler_result
 
         view_func_node = ViewFuncNode(wrapper, decorators=decorators)
         view_func_node.register(app, options)
