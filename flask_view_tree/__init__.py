@@ -30,8 +30,7 @@ class ViewFuncNode:
         for iter_decorator in self.decorators:
             self.view = iter_decorator(view)
             self.view.view_func_node = self
-        self.init_exc_types = ()
-        self.init_exc_handler = None
+        self.init_exc_handlers = []
 
     @property
     def __key__(self):
@@ -126,8 +125,7 @@ class ViewFuncNode:
 
         def catch_init(*exc_types):
             def decorator(f):
-                self.init_exc_types = exc_types
-                self.init_exc_handler = f
+                self.init_exc_handlers.append((exc_types, f))
                 return f
 
             return decorator
@@ -161,7 +159,7 @@ class ViewFuncNode:
         elif self.is_static:
             return self.parent.variables
         else:
-            return collections.OrderedDict(itertools.chain(self.parent.variables.items(), [(self.var_name, (self.var_converter, self.init_exc_types, self.init_exc_handler))]))
+            return collections.OrderedDict(itertools.chain(self.parent.variables.items(), [(self.var_name, (self.var_converter, self.init_exc_handlers))]))
 
 @class_key.class_key()
 class ViewNode:
@@ -173,7 +171,7 @@ class ViewNode:
             setattr(self, attr, getattr(self.view_func_node, attr))
         if kwargs is None:
             self.kwargs = {}
-            for variable, (converter, init_exc_types, init_exc_handler) in self.variables.items():
+            for variable, (converter, init_exc_handlers) in self.variables.items():
                 try:
                     if variable in inspect.signature(converter).parameters:
                         self.kwargs[variable] = converter(**{
@@ -184,11 +182,17 @@ class ViewNode:
                     else:
                         # variable name doesn't appear in converter's kwargs, assume it takes a single positional argument
                         self.kwargs[variable] = converter(self.raw_kwargs[variable])
-                except init_exc_types as e:
-                    if init_exc_handler is None:
+                except Exception as e:
+                    for exc_types, exc_handler in init_exc_handlers:
+                        try:
+                            raise
+                        except exc_types:
+                            self.init_exc_handler_result = exc_handler(e, self.raw_kwargs[variable])
+                            return
+                        except Exception:
+                            continue
+                    else:
                         raise
-                    self.init_exc_handler_result = init_exc_handler(e, self.raw_kwargs[variable])
-                    return
         else:
             self.kwargs = kwargs
 
