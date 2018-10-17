@@ -35,10 +35,10 @@ def me():
 
 **Note:** A node can either have any number of children registered using `child`, or have all children handled by a single registration of `children`. Do not mix `child` and `children`, or call `children` multiple times on the same node, unless you're sure you know what you're doing.
 
-A view function decorated using `children` has a `viewfunc.catch_init` property which can decorate an exception handler. This handler will be called if converting the variable fails.
+A view function decorated using `children` has a `viewfunc.catch_init` property which can decorate an exception handler. This handler will be called if converting the variable fails, passing the caught exception as well as the raw argument value.
 
 ```python
 @profile.catch_init(KeyError, TypeError)
-def profile_catch_init(exc):
-    return flask.render_template('user_not_found.html', exc=exc), 404
+def profile_catch_init(exc, value):
+    return flask.render_template('user_not_found.html', username=value), 404
 ```

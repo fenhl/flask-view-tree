@@ -187,7 +187,7 @@ class ViewNode:
                 except init_exc_types as e:
                     if init_exc_handler is None:
                         raise
-                    self.init_exc_handler_result = init_exc_handler(e)
+                    self.init_exc_handler_result = init_exc_handler(e, self.raw_kwargs[variable])
                     return
         else:
             self.kwargs = kwargs
