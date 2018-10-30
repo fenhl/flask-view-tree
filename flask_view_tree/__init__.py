@@ -36,6 +36,14 @@ class ViewFuncNode:
     def __key__(self):
         return (() if self.is_index else self.parent.__key__) + (self.name,)
 
+    def __str__(self):
+        if self.is_index:
+            return '/'
+        elif self.is_static:
+            return self.name
+        else:
+            return '<{}>'.format(self.var_name)
+
     @property
     def children_are_static(self):
         return isinstance(self.children, dict)
