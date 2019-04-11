@@ -10,8 +10,9 @@ NO_EXC = object()
 
 @class_key.class_key()
 class ViewFuncNode:
-    def __init__(self, view, parent=None, *, name=None, display_string=None, var_name=None, var_converter=None, iterable=None, redirect_func=None, decorators=None):
+    def __init__(self, view, parent=None, *, name=None, display_string=None, var_name=None, var_converter=None, iterable=None, redirect_func=None, decorators=None, view_name=None):
         self.view = view
+        self._view_name = view_name
         self.parent = parent
         self.children = collections.OrderedDict()
         self.name = name
@@ -85,7 +86,7 @@ class ViewFuncNode:
 
             return decorator
 
-        def redirect(name, display_string=None, *, decorators=None, **options):
+        def redirect(name, display_string=None, *, decorators=None, view_name=None, **options):
             def decorator(f):
                 @functools.wraps(f)
                 def wrapper(**kwargs):
@@ -107,8 +108,8 @@ class ViewFuncNode:
                 view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string, redirect_func=f, decorators=decorators)
                 for iter_decorator in view_func_node.decorators:
                     redirect_children_view_func = iter_decorator(redirect_children_view_func)
-                app.add_url_rule(view_func_node.url_rule, f.__name__, wrapper, **options)
-                app.add_url_rule('{}/<path:flask_view_tree_redirect_subtree>'.format(view_func_node.url_rule), 'flask_view_tree_redirect_children_{}'.format(f.__name__), redirect_children_view_func, **options)
+                app.add_url_rule(view_func_node.url_rule, f.__name__ if view_name is None else view_name, wrapper, **options)
+                app.add_url_rule('{}/<path:flask_view_tree_redirect_subtree>'.format(view_func_node.url_rule), 'flask_view_tree_redirect_children_{}'.format(f.__name__ if view_name is None else view_name), redirect_children_view_func, **options)
                 return view_func_node.view
 
             return decorator
@@ -138,7 +139,7 @@ class ViewFuncNode:
 
             return decorator
 
-        app.add_url_rule(self.url_rule, self.view.__name__, self.view, **options)
+        app.add_url_rule(self.url_rule, self.view_name, self.view, **options)
         iter_view = self.view
         while True:
             iter_view.child = child
@@ -168,6 +169,13 @@ class ViewFuncNode:
             return self.parent.variables
         else:
             return collections.OrderedDict(itertools.chain(self.parent.variables.items(), [(self.var_name, (self.var_converter, self.init_exc_handlers))]))
+
+    @property
+    def view_name(self):
+        if self._view_name is None:
+            return self.view.__name__
+        else:
+            return self._view_name
 
 @class_key.class_key()
 class ViewNode:
