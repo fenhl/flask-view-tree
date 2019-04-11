@@ -252,7 +252,17 @@ class ViewNode:
             if self.view_func_node.iterable is None:
                 children_iter = iter(child_node.var_converter)
             else:
-                children_iter = iter(child_node.iterable)
+                try:
+                    children_iter = iter(child_node.iterable)
+                except TypeError:
+                    if callable(child_node.iterable):
+                        children_iter = iter(child_node.iterable(**{
+                            iter_var: self.kwargs.get(iter_var, self.raw_kwargs[iter_var])
+                            for iter_var in self.variables
+                            if iter_var in inspect.signature(converter).parameters
+                        }))
+                    else:
+                        raise
             return [
                 ViewNode(child_node, {child_node.var_name: ViewNode.url_part(child_node, var_value), **self.raw_kwargs}, kwargs={child_node.var_name: var_value, **self.kwargs})
                 for var_value in children_iter
