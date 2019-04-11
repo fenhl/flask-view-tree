@@ -189,15 +189,21 @@ class ViewNode:
             self.kwargs = {}
             for variable, (converter, init_exc_handlers) in self.variables.items():
                 try:
-                    if variable in inspect.signature(converter).parameters:
+                    try:
+                        sig = inspect.signature(converter)
+                    except ValueError:
+                        sig = None # some builtins have no signatures, assume arguments are positional-only
+                    else:
+                        if variable not in sig.parameters:
+                            sig = None # variable name doesn't appear in converter's kwargs, assume it takes a single positional argument
+                    if sig is None:
+                        self.kwargs[variable] = converter(self.raw_kwargs[variable])
+                    else:
                         self.kwargs[variable] = converter(**{
                             iter_var: self.kwargs.get(iter_var, self.raw_kwargs[iter_var])
                             for iter_var in self.variables
-                            if iter_var in inspect.signature(converter).parameters
+                            if iter_var in sig.parameters
                         })
-                    else:
-                        # variable name doesn't appear in converter's kwargs, assume it takes a single positional argument
-                        self.kwargs[variable] = converter(self.raw_kwargs[variable])
                 except Exception as e:
                     for exc_types, exc_handler in init_exc_handlers:
                         try:
