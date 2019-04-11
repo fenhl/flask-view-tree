@@ -249,7 +249,7 @@ class ViewNode:
             ]
         else:
             child_node = self.view_func_node.children
-            if self.view_func_node.iterable is None:
+            if child_node.iterable is None:
                 children_iter = iter(child_node.var_converter)
             else:
                 try:
