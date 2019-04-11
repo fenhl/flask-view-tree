@@ -259,7 +259,7 @@ class ViewNode:
                         children_iter = iter(child_node.iterable(**{
                             iter_var: self.kwargs.get(iter_var, self.raw_kwargs[iter_var])
                             for iter_var in self.variables
-                            if iter_var in inspect.signature(converter).parameters
+                            if iter_var in inspect.signature(child_node.iterable).parameters
                         }))
                     else:
                         raise
