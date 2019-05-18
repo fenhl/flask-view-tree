@@ -265,7 +265,7 @@ class ViewNode:
             return '{}{}{}'.format(
                 self.parent.canonical_url,
                 '' if self.parent.is_index else '/',
-                self.url_part(self.view_func_node, self.var)
+                self.view_func_node.name if self.is_static else self.url_part(self.view_func_node, self.var)
             )
 
     @property
