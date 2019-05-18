@@ -189,7 +189,7 @@ class ViewNode:
         self.view_func_node = view_func_node
         self.raw_kwargs = raw_kwargs
         self.init_exc_handler_result = NO_EXC
-        for attr in {'children_are_static', 'is_index', 'is_redirect', 'is_static', 'variables', 'view'}:
+        for attr in {'children_are_static', 'is_index', 'is_redirect', 'is_static', 'variables', 'view', 'view_name'}:
             setattr(self, attr, getattr(self.view_func_node, attr))
         if kwargs is None:
             self.kwargs = {}
@@ -331,7 +331,7 @@ class ViewNode:
 
     @property
     def url(self):
-        return flask.url_for(self.view.__name__, **self.raw_kwargs)
+        return flask.url_for(self.view_name, **self.raw_kwargs)
 
     @property
     def var(self):
