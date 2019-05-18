@@ -120,7 +120,10 @@ class ViewFuncNode:
                 def wrapper(**kwargs):
                     flask.g.view_node = ViewNode(wrapper.view_func_node, kwargs)
                     if flask.g.view_node.init_exc_handler_result is NO_EXC:
-                        return f(**flask.g.view_node.kwargs)
+                        if flask.g.view_node.canonical_url != flask.g.view_node.url:
+                            return flask.redirect(flask.g.view_node.canonical_url)
+                        else:
+                            return f(**flask.g.view_node.kwargs)
                     else:
                         return flask.g.view_node.init_exc_handler_result
 
@@ -252,7 +255,18 @@ class ViewNode:
             )
         else:
             child_node = self.view_func_node.children
-            return ViewNode(child_node, {child_node.var_name: ViewNode.url_part(child_node, other), **self.raw_kwargs}, kwargs={child_node.var_name: other, **self.kwargs})
+            return ViewNode(child_node, {**self.raw_kwargs, child_node.var_name: ViewNode.url_part(child_node, other)}, kwargs={**self.kwargs, child_node.var_name: other})
+
+    @property
+    def canonical_url(self):
+        if self.is_index:
+            return '/'
+        else:
+            return '{}{}{}'.format(
+                self.parent.canonical_url,
+                '' if self.parent.is_index else '/',
+                self.url_part(self.view_func_node, self.var)
+            )
 
     @property
     def children(self):
@@ -278,7 +292,7 @@ class ViewNode:
                     else:
                         raise
             return [
-                ViewNode(child_node, {child_node.var_name: ViewNode.url_part(child_node, var_value), **self.raw_kwargs}, kwargs={child_node.var_name: var_value, **self.kwargs})
+                ViewNode(child_node, {**self.raw_kwargs, child_node.var_name: ViewNode.url_part(child_node, var_value)}, kwargs={**self.kwargs, child_node.var_name: var_value})
                 for var_value in children_iter
             ]
 
