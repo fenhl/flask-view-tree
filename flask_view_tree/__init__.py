@@ -75,7 +75,10 @@ class ViewFuncNode:
                 def wrapper(**kwargs):
                     flask.g.view_node = ViewNode(wrapper.view_func_node, kwargs)
                     if flask.g.view_node.init_exc_handler_result is NO_EXC:
-                        return f(**flask.g.view_node.kwargs)
+                        if flask.g.view_node.canonical_url != flask.g.view_node.url:
+                            return flask.redirect(flask.g.view_node.canonical_url)
+                        else:
+                            return f(**flask.g.view_node.kwargs)
                     else:
                         return flask.g.view_node.init_exc_handler_result
 
