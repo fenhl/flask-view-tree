@@ -5,6 +5,7 @@ import functools
 import inspect
 import itertools
 import more_itertools
+import urllib.parse
 
 NO_EXC = object()
 
@@ -268,7 +269,7 @@ class ViewNode:
             return '{}{}{}'.format(
                 self.parent.canonical_url,
                 '' if self.parent.is_index else '/',
-                self.view_func_node.name if self.is_static else self.url_part(self.view_func_node, self.var)
+                urllib.parse.quote(self.view_func_node.name if self.is_static else self.url_part(self.view_func_node, self.var))
             )
 
     @property
