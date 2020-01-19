@@ -11,10 +11,11 @@ NO_EXC = object()
 
 @class_key.class_key()
 class ViewFuncNode:
-    def __init__(self, view, parent=None, *, name=None, display_string=None, var_name=None, var_converter=None, iterable=None, redirect_func=None, decorators=None, view_name=None):
+    def __init__(self, view, parent=None, *, app=app, decorators=None, display_string=None, iterable=None, name=None, redirect_func=None, var_converter=None, var_name=None, view_name=None):
         self.view = view
         self._view_name = view_name
         self.parent = parent
+        self.app = app
         self.children = collections.OrderedDict()
         self.name = name
         self.display_string = display_string
@@ -83,7 +84,7 @@ class ViewFuncNode:
                     else:
                         return flask.g.view_node.init_exc_handler_result
 
-                view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string, decorators=decorators, view_name=view_name)
+                view_func_node = ViewFuncNode(wrapper, self, app=app, name=name, display_string=display_string, decorators=decorators, view_name=view_name)
                 self.children[name] = view_func_node
                 view_func_node.register(app, options)
                 return view_func_node.view
@@ -109,7 +110,7 @@ class ViewFuncNode:
                     else:
                         return view_node.init_exc_handler_result
 
-                view_func_node = ViewFuncNode(wrapper, self, name=name, display_string=display_string, redirect_func=f, decorators=decorators, view_name=view_name)
+                view_func_node = ViewFuncNode(wrapper, self, app=app, name=name, display_string=display_string, redirect_func=f, decorators=decorators, view_name=view_name)
                 for iter_decorator in view_func_node.decorators:
                     redirect_children_view_func = iter_decorator(redirect_children_view_func)
                 app.add_url_rule(view_func_node.url_rule, f.__name__ if view_name is None else view_name, wrapper, **options)
@@ -132,7 +133,7 @@ class ViewFuncNode:
                         return flask.g.view_node.init_exc_handler_result
 
                 child_var = more_itertools.one(set(inspect.signature(f).parameters) - set(self.variables)) # find the name of the parameter that the child's viewfunc has but self's doesn't
-                view_func_node = ViewFuncNode(wrapper, self, var_name=child_var, var_converter=var_converter, iterable=iterable, decorators=decorators, view_name=view_name)
+                view_func_node = ViewFuncNode(wrapper, self, app=app, var_name=child_var, var_converter=var_converter, iterable=iterable, decorators=decorators, view_name=view_name)
                 self.children = view_func_node
                 view_func_node.register(app, options, register_catch_init=True)
                 return view_func_node.view
@@ -190,7 +191,7 @@ class ViewNode:
         self.view_func_node = view_func_node
         self.raw_kwargs = raw_kwargs
         self.init_exc_handler_result = NO_EXC
-        for attr in {'children_are_static', 'is_index', 'is_redirect', 'is_static', 'variables', 'view', 'view_name'}:
+        for attr in {'app', 'children_are_static', 'is_index', 'is_redirect', 'is_static', 'variables', 'view', 'view_name'}:
             setattr(self, attr, getattr(self.view_func_node, attr))
         if kwargs is None:
             self.kwargs = {}
@@ -362,7 +363,7 @@ def index(app, *, decorators=None, view_name=None, **options):
             else:
                 return flask.g.view_node.init_exc_handler_result
 
-        view_func_node = ViewFuncNode(wrapper, decorators=decorators, view_name=None)
+        view_func_node = ViewFuncNode(wrapper, app=app, decorators=decorators, view_name=None)
         view_func_node.register(app, options)
         return view_func_node.view
 
