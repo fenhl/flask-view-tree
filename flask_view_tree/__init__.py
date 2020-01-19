@@ -11,7 +11,7 @@ NO_EXC = object()
 
 @class_key.class_key()
 class ViewFuncNode:
-    def __init__(self, view, parent=None, *, app=app, decorators=None, display_string=None, iterable=None, name=None, redirect_func=None, var_converter=None, var_name=None, view_name=None):
+    def __init__(self, view, parent=None, *, app, decorators=None, display_string=None, iterable=None, name=None, redirect_func=None, var_converter=None, var_name=None, view_name=None):
         self.view = view
         self._view_name = view_name
         self.parent = parent
